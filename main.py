@@ -4,6 +4,7 @@ import tensorflow as tf
 import pandas as pd
 import shutil
 import numpy
+from keras_flops import get_flops
 IMAGE_SIZE = (224, 224)
 IMAGE_PATH = "./Project_A_Supp/mhist_dataset/images/"
 ANNOTATION_PATH = "./Project_A_Supp/mhist_dataset/annotations.csv"
@@ -77,10 +78,10 @@ def create_pretrain_resnet_model():
     for i in range(len(res_net_model.layers)):
         res_net_model.layers[i].trainable = False
 
-    # classifier = tf.keras.layers.Conv2D(128, (3, 3), activation='relu')(res_net_model.output)
-    # classifier = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(classifier)
+    #classifier = tf.keras.layers.Conv2D(128, (3, 3), activation='relu')(res_net_model.output)
+    #classifier = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(classifier)
     classifier = tf.keras.layers.Flatten()(res_net_model.output)
-    # classifier = tf.keras.layers.Dense(100, activation='relu')(classifier)
+    #classifier = tf.keras.layers.Dense(100, activation='relu')(classifier)
     classifier = tf.keras.layers.Dense(NUM_CLASSES)(classifier)
     re_model = tf.keras.models.Model(inputs=res_net_model.input, outputs=classifier)
     # re_model.summary()
@@ -100,7 +101,10 @@ def create_mobilenet_model():
     mb_model = tf.keras.models.Model(inputs=mobile_net_model.input, outputs=classifier)
     # mb_model.summary()
     return mb_model
-
+def parameter_count(model):
+  trainableParams = numpy.sum([numpy.prod(v.get_shape()) for v in model.trainable_weights])
+  nonTrainableParams = numpy.sum([numpy.prod(v.get_shape()) for v in model.non_trainable_weights])
+  return trainableParams,nonTrainableParams
 
 def compute_num_correct(model, images, labels):
   """Compute number of correctly classified images in a batch.
@@ -138,13 +142,13 @@ def compute_F1(model, images, labels):
   labels=tf.argmax(labels,-1)
   for i in range(tf.size(labels).numpy()):
       if class_logits[i]==0 and labels[i]==0:
-          TN+=1
-      elif class_logits[i]==1 and labels[i]==1:
           TP+=1
+      elif class_logits[i]==1 and labels[i]==1:
+          TN+=1
       elif class_logits[i]==1 and labels[i]==0:
-          FP+=1
-      elif class_logits[i]==0 and labels[i]==1:
           FN+=1
+      elif class_logits[i]==0 and labels[i]==1:
+          FP+=1
   return [TN,TP,FP,FN]
 
 def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_epochs, fine_tune_num_epochs,
@@ -412,3 +416,10 @@ if __name__ == "__main__":
     print("train mobilnet start here")
     mobile_net = create_mobilenet_model()
     train_and_eveluate_transfer_learn(mobile_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun, 1e-3)
+
+    print("teacher trainable parameters & non-trainable parameters:", parameter_count(res_net))
+    print("student trainable parameters & non-trainable parameters:", parameter_count(mobile_net))
+    student_flops = get_flops(res_net, batch_size=1)
+    teacher_flops = get_flops(mobile_net, batch_size=1)
+    print(f"teacher FLOPS: {teacher_flops / 10 ** 9:.03} G")
+    print(f"student FLOPS: {student_flops / 10 ** 9:.03} G")
