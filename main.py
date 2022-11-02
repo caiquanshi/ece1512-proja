@@ -1,6 +1,5 @@
 # part b
 import os
-from tensorflow.python.client import device_lib
 import tensorflow as tf
 import pandas as pd
 import shutil
@@ -11,7 +10,7 @@ IMAGE_PATH_WITH_VOTE = "./images_with_label_vote/"
 IMAGE_PATH_WITH_MAJORITY = "./images_with_label_majority/"
 IMAGE_SHAPE = (224, 224, 3)
 NUM_CLASSES = 2
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
 def file_generator_by_vote(mhist_dir, new_dir, annotation_path=ANNOTATION_PATH):
     annotation = pd.read_csv(annotation_path)
@@ -46,8 +45,8 @@ def data_loader(image_dir):
         label_mode='categorical',
         color_mode='rgb',
         seed=123,
-        image_size=(224, 224),
-        batch_size=32)
+        image_size=IMAGE_SIZE,
+        batch_size=BATCH_SIZE)
     val_ds = tf.keras.utils.image_dataset_from_directory(
         image_dir+"train",
         labels='inferred',
@@ -56,8 +55,8 @@ def data_loader(image_dir):
         validation_split=0.2,
         subset="validation",
         seed=123,
-        image_size=(224, 224),
-        batch_size=32)
+        image_size=IMAGE_SIZE,
+        batch_size=BATCH_SIZE)
 
     test_ds = tf.keras.utils.image_dataset_from_directory(
         image_dir+"test",
@@ -65,8 +64,8 @@ def data_loader(image_dir):
         label_mode='categorical',
         color_mode='rgb',
         seed=123,
-        image_size=(224, 224),
-        batch_size=32)
+        image_size=IMAGE_SIZE,
+        batch_size=BATCH_SIZE)
     return train_ds, val_ds, test_ds
 
 
@@ -88,9 +87,10 @@ def create_pretrain_resnet_model():
 
 
 def create_mobilenet_model():
-    mobile_net_model = tf.keras.applications.mobilenet_v2.MobileNetV2(include_top=False, weights=None,
-                                                                   input_shape=IMAGE_SHAPE)
-
+    mobile_net_model = tf.keras.applications.mobilenet_v2.MobileNetV2(include_top=False, weights='imagenet',
+                                                                      input_shape=IMAGE_SHAPE)
+    for i in range(len(mobile_net_model.layers)):
+        mobile_net_model.layers[i].trainable = False
     # classifier = tf.keras.layers.Conv2D(128, (3, 3), activation='relu')(res_net_model.output)
     # classifier = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(classifier)
     classifier = tf.keras.layers.Flatten()(mobile_net_model.output)
@@ -112,7 +112,7 @@ def compute_num_correct(model, images, labels):
   Returns:
     Number of correctly classified images.
   """
-  class_logits = model(images, training=False)
+  class_logits = model(images, training=True)
   return tf.reduce_sum(
       tf.cast(tf.math.equal(tf.argmax(class_logits, -1), tf.argmax(labels, -1)),
               tf.float32)), tf.argmax(class_logits, -1), tf.argmax(labels, -1)
@@ -282,20 +282,25 @@ def compute_student_loss(student_model, teacher_model, images, labels, temperatu
   Returns:
     Scalar loss Tensor.
   """
+
   student_subclass_logits = student_model(images, training=True)
+
+  teacher_subclass_logits = teacher_model(images, training=False)
+
 
   # Compute subclass distillation loss between student subclass logits and
   # softened teacher subclass targets probabilities.
 
 
-  teacher_subclass_logits = teacher_model(images, training=False)
-  distillation_loss_value =distillation_loss(teacher_subclass_logits,student_subclass_logits,temperature)
+
+  distillation_loss_value = distillation_loss(teacher_subclass_logits, student_subclass_logits, temperature)
 
   # Compute cross-entropy loss with hard targets.
 
 
 
-  cross_entropy_loss_value = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=student_subclass_logits))
+  cross_entropy_loss_value = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels,
+                                                                                    logits=teacher_subclass_logits))
 
   return alpha*distillation_loss_value+(1-alpha)*cross_entropy_loss_value
 
@@ -324,7 +329,7 @@ if __name__ == "__main__":
     train_ds, val_ds, test_ds = data_loader(IMAGE_PATH_WITH_MAJORITY)
     print("transfer learn resnet start here")
     res_net = create_pretrain_resnet_model()
-    # train_and_eveluate_transfer_learn(res_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun, 1e-4)
+    train_and_eveluate_transfer_learn(res_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun, 1e-4)
     print("distillation start here")
     mobile_net = create_mobilenet_model()
     train_and_evaluate_distillation(res_net, mobile_net, train_ds, test_ds, 10, 25, 10, 0.5, 4, 1e-3)
