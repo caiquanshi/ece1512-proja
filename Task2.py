@@ -14,6 +14,7 @@ IMAGE_SHAPE = (224, 224, 3)
 NUM_CLASSES = 2
 BATCH_SIZE = 16
 
+
 def file_generator_by_vote(mhist_dir, new_dir, annotation_path=ANNOTATION_PATH):
     annotation = pd.read_csv(annotation_path)
     for index, line in annotation.iterrows():
@@ -405,7 +406,7 @@ def compute_loss_fun(model, images, labels):
 if __name__ == "__main__":
     # tf.debugging.set_log_device_placement(True)
     # file_generator_by_vote(IMAGE_PATH, IMAGE_PATH_WITH_VOTE)
-    # file_generator_by_majority(IMAGE_PATH, IMAGE_PATH_WITH_MAJORITY)
+    file_generator_by_majority(IMAGE_PATH, IMAGE_PATH_WITH_MAJORITY)
     train_ds, val_ds, test_ds = data_loader(IMAGE_PATH_WITH_MAJORITY)
     print("transfer learn resnet start here")
     res_net = create_pretrain_resnet_model()
