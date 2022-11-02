@@ -119,7 +119,16 @@ def compute_num_correct(model, images, labels):
               tf.float32)), tf.argmax(class_logits, -1), tf.argmax(labels, -1)
 
 def compute_F1(model, images, labels):
+  """Compute number of F1 scores in a batch.
 
+  Args:
+    model: Instance of tf.keras.Model.
+    images: Tensor representing a batch of images.
+    labels: Tensor representing a batch of labels.
+
+  Returns:
+    array of four F1 numbers.
+  """
   TP=0
   FP=0
   FN=0
@@ -140,7 +149,7 @@ def compute_F1(model, images, labels):
 
 def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_epochs, fine_tune_num_epochs,
                                       ft, compute_loss, lr):
-    # your code start from here for step 4
+
 
     optimizer = tf.keras.optimizers.Adam(
         learning_rate=lr)
@@ -224,7 +233,7 @@ def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_
 
 def train_and_evaluate_distillation(teacher_model, student_model, train_data, test_data, initial_num_epochs,
                                     fine_tune_num_epochs, ft, aplha, temperature, lr):
-    """Perform training and evaluation for a given model.
+    """Perform training and evaluation for a student model.
 
     Args:
       model: Instance of tf.keras.Model.
@@ -246,6 +255,17 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
             grads = tape.gradient(loss_value, student_model.trainable_variables)
             optimizer.apply_gradients(zip(grads, student_model.trainable_variables))
 
+        F1_list = [0, 0, 0, 0]
+        for images, labels in test_data:
+            # your code start from here for step 4
+            F1_list = numpy.add(F1_list, compute_F1(student_model, images, labels))
+        prec_1 = F1_list[1] / (F1_list[1] + F1_list[2])
+        recall_1 = F1_list[1] / (F1_list[1] + F1_list[3])
+        F1_1 = 2 * prec_1 * recall_1 / (prec_1 + recall_1)
+        prec_2 = F1_list[0] / (F1_list[0] + F1_list[3])
+        recall_2 = F1_list[0] / (F1_list[0] + F1_list[2])
+        F1_2 = 2 * prec_2 * recall_2 / (prec_2 + recall_2)
+        print("F1 score:", round(F1_1, 4), round(F1_2, 4))
         num_correct = 0
         num_total = 977
         for images, labels in test_data:
@@ -273,6 +293,18 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
 
             grads = tape.gradient(loss_value, student_model.trainable_variables)
             optimizer.apply_gradients(zip(grads, student_model.trainable_variables))
+
+        F1_list = [0, 0, 0, 0]
+        for images, labels in test_data:
+            # your code start from here for step 4
+            F1_list = numpy.add(F1_list, compute_F1(student_model, images, labels))
+        prec_1 = F1_list[1] / (F1_list[1] + F1_list[2])
+        recall_1 = F1_list[1] / (F1_list[1] + F1_list[3])
+        F1_1 = 2 * prec_1 * recall_1 / (prec_1 + recall_1)
+        prec_2 = F1_list[0] / (F1_list[0] + F1_list[3])
+        recall_2 = F1_list[0] / (F1_list[0] + F1_list[2])
+        F1_2 = 2 * prec_2 * recall_2 / (prec_2 + recall_2)
+        print("F1 score:", round(F1_1, 4), round(F1_2, 4))
 
         # Run evaluation.
         num_correct = 0
