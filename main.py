@@ -419,7 +419,7 @@ if __name__ == "__main__":
 
     print("teacher trainable parameters & non-trainable parameters:", parameter_count(res_net))
     print("student trainable parameters & non-trainable parameters:", parameter_count(mobile_net))
-    student_flops = get_flops(res_net, batch_size=1)
-    teacher_flops = get_flops(mobile_net, batch_size=1)
+    teacher_flops = get_flops(res_net, batch_size=1)
+    student_flops = get_flops(mobile_net, batch_size=1)
     print(f"teacher FLOPS: {teacher_flops / 10 ** 9:.03} G")
     print(f"student FLOPS: {student_flops / 10 ** 9:.03} G")
