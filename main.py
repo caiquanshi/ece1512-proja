@@ -7,8 +7,8 @@ import shutil
 IMAGE_SIZE = (224, 224)
 IMAGE_PATH = "./Project_A_Supp/mhist_dataset/images/"
 ANNOTATION_PATH = "./Project_A_Supp/mhist_dataset/annotations.csv"
-IMAGE_PATH_WITH_VOTE = "./images_with_label_vote"
-IMAGE_PATH_WITH_MAJORITY = "./images_with_label_majority"
+IMAGE_PATH_WITH_VOTE = "./images_with_label_vote/"
+IMAGE_PATH_WITH_MAJORITY = "./images_with_label_majority/"
 IMAGE_SHAPE = (224, 224, 3)
 NUM_CLASSES = 2
 
@@ -41,17 +41,15 @@ def file_generator_by_majority(mhist_dir, new_dir, annotation_path=ANNOTATION_PA
 
 def data_loader(image_dir):
     train_ds = tf.keras.utils.image_dataset_from_directory(
-        image_dir+"/train",
+        image_dir+"train",
         labels='inferred',
         label_mode='categorical',
         color_mode='rgb',
-        validation_split=0.2,
-        subset="training",
         seed=123,
         image_size=(224, 224),
         batch_size=32)
     val_ds = tf.keras.utils.image_dataset_from_directory(
-        image_dir+"/train",
+        image_dir+"train",
         labels='inferred',
         label_mode='categorical',
         color_mode='rgb',
@@ -62,7 +60,7 @@ def data_loader(image_dir):
         batch_size=32)
 
     test_ds = tf.keras.utils.image_dataset_from_directory(
-        image_dir+"/test",
+        image_dir+"test",
         labels='inferred',
         label_mode='categorical',
         color_mode='rgb',
@@ -99,20 +97,48 @@ def compute_num_correct(model, images, labels):
   Returns:
     Number of correctly classified images.
   """
-  class_logits = model(images, training=False)
+  class_logits = model(images, training=True)
   return tf.reduce_sum(
       tf.cast(tf.math.equal(tf.argmax(class_logits, -1), tf.argmax(labels, -1)),
               tf.float32)), tf.argmax(class_logits, -1), tf.argmax(labels, -1)
 
 
-def train_and_eveluate(model, train_data, test_data, num_epochs, compute_loss):
+def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_epochs, fine_tune_num_epochs, ft, compute_loss):
     # your code start from here for step 4
     optimizer = tf.keras.optimizers.Adam(
-        learning_rate=0.001)
+        learning_rate=1e-4)
     test_acc = []
-    for epoch in range(1, num_epochs + 1):
-        # Run training.
-        print('Epoch {}: '.format(epoch), end='')
+    for epoch in range(1, initial_num_epochs + 1):
+        # Run initial training.
+        print('initial Epoch {}: '.format(epoch), end='')
+        for images, labels in train_data:
+            with tf.GradientTape() as tape:
+                # your code start from here for step 4
+                loss_value = compute_loss(model, images, labels)
+
+            grads = tape.gradient(loss_value, model.trainable_variables)
+            optimizer.apply_gradients(zip(grads, model.trainable_variables))
+
+        num_correct = 0
+        num_total = 977
+        for images, labels in test_data:
+            # your code start from here for step 4
+
+            num_correct += compute_num_correct(model, images, labels)[0]
+        print("Class_accuracy: " + '{:.2f}%'.format(
+            num_correct / num_total * 100))
+        test_acc.append(num_correct / num_total * 100)
+
+    for i in range(len(model.layers) - 3, len(model.layers) - ft - 3, -1):
+        model.layers[i].trainable = True
+    for i in range(len(model.layers)-1, len(model.layers) - 3, -1):
+        model.layers[i].trainable = False
+    model.summary()
+    optimizer = tf.keras.optimizers.Adam(
+        learning_rate=0.1)
+    for fine_tune_epoch in range(1, fine_tune_num_epochs + 1):
+        # Run fine tune training.
+        print('Fine_tune_Epoch {}: '.format(fine_tune_epoch), end='')
         for images, labels in train_data:
             with tf.GradientTape() as tape:
                 # your code start from here for step 4
@@ -123,7 +149,6 @@ def train_and_eveluate(model, train_data, test_data, num_epochs, compute_loss):
 
         # Run evaluation.
         num_correct = 0
-
         num_total = 977
         for images, labels in test_data:
             # your code start from here for step 4
@@ -156,8 +181,8 @@ def compute_loss_fun(model, images, labels):
 
 if __name__ == "__main__":
     # tf.debugging.set_log_device_placement(True)
-    # file_generator_by_vote(IMAGE_PATH, IMAGE_PATH_WITH_LABEL)
+    # file_generator_by_vote(IMAGE_PATH, IMAGE_PATH_WITH_VOTE)
     file_generator_by_majority(IMAGE_PATH, IMAGE_PATH_WITH_MAJORITY)
     train_ds, val_ds, test_ds = data_loader(IMAGE_PATH_WITH_MAJORITY)
-    res_net = create_pretrain_resnet_model(10)
-    train_and_eveluate(res_net, train_ds, test_ds, 12, compute_loss_fun)
+    res_net = create_pretrain_resnet_model()
+    train_and_eveluate_transfer_learn(res_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun)
