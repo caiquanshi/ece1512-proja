@@ -4,6 +4,8 @@ import tensorflow as tf
 import pandas as pd
 import shutil
 import numpy
+import matplotlib.pyplot as plt
+
 from keras_flops import get_flops
 IMAGE_SIZE = (224, 224)
 IMAGE_PATH = "./Project_A_Supp/mhist_dataset/images/"
@@ -12,7 +14,7 @@ IMAGE_PATH_WITH_VOTE = "./images_with_label_vote/"
 IMAGE_PATH_WITH_MAJORITY = "./images_with_label_majority/"
 IMAGE_SHAPE = (224, 224, 3)
 NUM_CLASSES = 2
-BATCH_SIZE = 16
+BATCH_SIZE = 32
 
 
 def file_generator_by_vote(mhist_dir, new_dir, annotation_path=ANNOTATION_PATH):
@@ -152,13 +154,14 @@ def compute_F1(model, images, labels):
           FP+=1
   return [TN,TP,FP,FN]
 
+
 def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_epochs, fine_tune_num_epochs,
                                       ft, compute_loss, lr):
-
 
     optimizer = tf.keras.optimizers.Adam(
         learning_rate=lr)
     test_acc = []
+    test_f1 = []
     for epoch in range(1, initial_num_epochs + 1):
         # Run initial training.
         print('initial Epoch {}: '.format(epoch), end='')
@@ -180,6 +183,7 @@ def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_
         prec_2 = F1_list[0] / (F1_list[0] + F1_list[3])
         recall_2 = F1_list[0] / (F1_list[0] + F1_list[2])
         F1_2 = 2 * prec_2 * recall_2 / (prec_2 + recall_2)
+        test_f1.append((F1_1, F1_2))
         print("F1 score:", round(F1_1, 4), round(F1_2, 4))
 
         num_correct = 0
@@ -190,7 +194,7 @@ def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_
             num_correct += compute_num_correct(model, images, labels)[0]
         print("Class_accuracy: " + '{:.2f}%'.format(
             num_correct / num_total * 100))
-        test_acc.append(num_correct / num_total * 100)
+        test_acc.append(num_correct / num_total)
 
     for i in range(len(model.layers) - 3, len(model.layers) - ft - 3, -1):
         model.layers[i].trainable = True
@@ -198,7 +202,7 @@ def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_
         model.layers[i].trainable = False
     # model.summary()
     optimizer = tf.keras.optimizers.Adam(
-        learning_rate=0.1)
+        learning_rate=lr*0.1)
     for fine_tune_epoch in range(1, fine_tune_num_epochs + 1):
         # Run fine tune training.
         print('Fine_tune_Epoch {}: '.format(fine_tune_epoch), end='')
@@ -220,6 +224,7 @@ def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_
         prec_2 = F1_list[0] / (F1_list[0] + F1_list[3])
         recall_2 = F1_list[0] / (F1_list[0] + F1_list[2])
         F1_2 = 2 * prec_2 * recall_2 / (prec_2 + recall_2)
+        test_f1.append((F1_1, F1_2))
         print("F1 score:", round(F1_1, 4), round(F1_2, 4))
 
         # Run evaluation.
@@ -231,9 +236,9 @@ def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_
             num_correct += compute_num_correct(model, images, labels)[0]
         print("Class_accuracy: " + '{:.2f}%'.format(
             num_correct / num_total * 100))
-        test_acc.append(num_correct / num_total * 100)
+        test_acc.append(num_correct / num_total)
 
-    return max(test_acc)
+    return test_acc, test_f1
 
 
 def train_and_evaluate_distillation(teacher_model, student_model, train_data, test_data, initial_num_epochs,
@@ -249,6 +254,7 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
     optimizer = tf.keras.optimizers.Adam(
         learning_rate=lr)
     test_acc = []
+    test_f1 = []
     for epoch in range(1, initial_num_epochs + 1):
         # Run initial training.
         print('initial Epoch {}: '.format(epoch), end='')
@@ -270,6 +276,7 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
         prec_2 = F1_list[0] / (F1_list[0] + F1_list[3])
         recall_2 = F1_list[0] / (F1_list[0] + F1_list[2])
         F1_2 = 2 * prec_2 * recall_2 / (prec_2 + recall_2)
+        test_f1.append((F1_1, F1_2))
         print("F1 score:", round(F1_1, 4), round(F1_2, 4))
         num_correct = 0
         num_total = 977
@@ -279,7 +286,7 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
             num_correct += compute_num_correct(student_model, images, labels)[0]
         print("Class_accuracy: " + '{:.2f}%'.format(
             num_correct / num_total * 100))
-        test_acc.append(num_correct / num_total * 100)
+        test_acc.append(num_correct / num_total)
 
     for i in range(len(student_model.layers) - 3, len(student_model.layers) - ft - 3, -1):
         student_model.layers[i].trainable = True
@@ -287,7 +294,7 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
         student_model.layers[i].trainable = False
     # student_model.summary()
     optimizer = tf.keras.optimizers.Adam(
-        learning_rate=0.1)
+        learning_rate=lr*0.1)
     for fine_tune_epoch in range(1, fine_tune_num_epochs + 1):
         # Run fine tune training.
         print('Fine_tune_Epoch {}: '.format(fine_tune_epoch), end='')
@@ -309,6 +316,7 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
         prec_2 = F1_list[0] / (F1_list[0] + F1_list[3])
         recall_2 = F1_list[0] / (F1_list[0] + F1_list[2])
         F1_2 = 2 * prec_2 * recall_2 / (prec_2 + recall_2)
+        test_f1.append((F1_1, F1_2))
         print("F1 score:", round(F1_1, 4), round(F1_2, 4))
 
         # Run evaluation.
@@ -320,9 +328,9 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
             num_correct += compute_num_correct(student_model, images, labels)[0]
         print("Class_accuracy: " + '{:.2f}%'.format(
             num_correct / num_total * 100))
-        test_acc.append(num_correct / num_total * 100)
+        test_acc.append(num_correct / num_total)
 
-    return max(test_acc)
+    return test_acc, test_f1
 
 
 def distillation_loss(teacher_logits: tf.Tensor, student_logits: tf.Tensor,
@@ -402,6 +410,18 @@ def compute_loss_fun(model, images, labels):
 
   return cross_entropy_loss_value
 
+def plot_graph(title, test_acc, test_f1):
+    eps = range(1, 36)
+    plt.title(title)
+    plt.plot(eps, test_acc, label='test accuracy')
+    plt.plot(eps, [i[0] for i in test_f1], label='f1 score for HP')
+    plt.plot(eps, [i[1] for i in test_f1], label='f1 score for SSA')
+    plt.xlabel('epoch')
+    plt.ylabel('accuracy')
+    plt.legend()
+    plt.savefig(title +".png")
+    plt.show()
+    plt.clf()
 
 if __name__ == "__main__":
     # tf.debugging.set_log_device_placement(True)
@@ -410,14 +430,16 @@ if __name__ == "__main__":
     train_ds, val_ds, test_ds = data_loader(IMAGE_PATH_WITH_MAJORITY)
     print("transfer learn resnet start here")
     res_net = create_pretrain_resnet_model()
-    train_and_eveluate_transfer_learn(res_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun, 1e-4)
+    test_acc, test_f1 = train_and_eveluate_transfer_learn(res_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun, 1e-4)
+    plot_graph("Teacher_model(resnet)_figure", test_acc, test_f1)
     print("distillation start here")
     mobile_net = create_mobilenet_model()
-    train_and_evaluate_distillation(res_net, mobile_net, train_ds, test_ds, 10, 25, 10, 0.5, 4, 1e-3)
+    test_acc, test_f1 = train_and_evaluate_distillation(res_net, mobile_net, train_ds, test_ds, 10, 25, 10, 0.5, 4, 1e-3)
+    plot_graph("Student_model(mobilenet)_distillation_figure", test_acc, test_f1)
     print("train mobilnet start here")
     mobile_net = create_mobilenet_model()
-    train_and_eveluate_transfer_learn(mobile_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun, 1e-3)
-
+    test_acc, test_f1 = train_and_eveluate_transfer_learn(mobile_net, train_ds, test_ds, 10, 25, 10, compute_loss_fun, 1e-3)
+    plot_graph("Student_model(mobilenet)_from_scratch_figure", test_acc, test_f1)
     print("teacher trainable parameters & non-trainable parameters:", parameter_count(res_net))
     print("student trainable parameters & non-trainable parameters:", parameter_count(mobile_net))
     teacher_flops = get_flops(res_net, batch_size=1)
