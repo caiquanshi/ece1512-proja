@@ -7,6 +7,16 @@ import numpy
 import matplotlib.pyplot as plt
 
 from keras_flops import get_flops
+#####################################
+# Title: keras_flops
+# Author: tokusumi
+# Date: 17 Aug 2020
+# Availability: https://github.com/tokusumi/keras-flops
+#
+#####################################
+
+
+
 IMAGE_SIZE = (224, 224)
 IMAGE_PATH = "./Project_A_Supp/mhist_dataset/images/"
 ANNOTATION_PATH = "./Project_A_Supp/mhist_dataset/annotations.csv"
