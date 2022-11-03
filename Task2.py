@@ -14,7 +14,7 @@ IMAGE_PATH_WITH_VOTE = "./images_with_label_vote/"
 IMAGE_PATH_WITH_MAJORITY = "./images_with_label_majority/"
 IMAGE_SHAPE = (224, 224, 3)
 NUM_CLASSES = 2
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 
 
 def file_generator_by_vote(mhist_dir, new_dir, annotation_path=ANNOTATION_PATH):
@@ -81,10 +81,9 @@ def create_pretrain_resnet_model():
     for i in range(len(res_net_model.layers)):
         res_net_model.layers[i].trainable = False
 
-    #classifier = tf.keras.layers.Conv2D(128, (3, 3), activation='relu')(res_net_model.output)
-    #classifier = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(classifier)
+
     classifier = tf.keras.layers.Flatten()(res_net_model.output)
-    #classifier = tf.keras.layers.Dense(100, activation='relu')(classifier)
+
     classifier = tf.keras.layers.Dense(NUM_CLASSES)(classifier)
     re_model = tf.keras.models.Model(inputs=res_net_model.input, outputs=classifier)
     # re_model.summary()
@@ -96,10 +95,9 @@ def create_mobilenet_model():
                                                                       input_shape=IMAGE_SHAPE)
     for i in range(len(mobile_net_model.layers)):
         mobile_net_model.layers[i].trainable = False
-    # classifier = tf.keras.layers.Conv2D(128, (3, 3), activation='relu')(res_net_model.output)
-    # classifier = tf.keras.layers.MaxPooling2D(pool_size=(2, 2))(classifier)
+
     classifier = tf.keras.layers.Flatten()(mobile_net_model.output)
-    # classifier = tf.keras.layers.Dense(100, activation='relu')(classifier)
+
     classifier = tf.keras.layers.Dense(NUM_CLASSES)(classifier)
     mb_model = tf.keras.models.Model(inputs=mobile_net_model.input, outputs=classifier)
     # mb_model.summary()
@@ -243,14 +241,7 @@ def train_and_eveluate_transfer_learn(model, train_data, test_data, initial_num_
 
 def train_and_evaluate_distillation(teacher_model, student_model, train_data, test_data, initial_num_epochs,
                                     fine_tune_num_epochs, ft, aplha, temperature, lr):
-    """Perform training and evaluation for a student model.
 
-    Args:
-      model: Instance of tf.keras.Model.
-      compute_loss_fn: A function that computes the training loss given the
-        images, and labels.
-    """
-    # your code start from here for step 4
     optimizer = tf.keras.optimizers.Adam(
         learning_rate=lr)
     test_acc = []
@@ -281,7 +272,6 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
         num_correct = 0
         num_total = 977
         for images, labels in test_data:
-            # your code start from here for step 4
 
             num_correct += compute_num_correct(student_model, images, labels)[0]
         print("Class_accuracy: " + '{:.2f}%'.format(
@@ -335,24 +325,7 @@ def train_and_evaluate_distillation(teacher_model, student_model, train_data, te
 
 def distillation_loss(teacher_logits: tf.Tensor, student_logits: tf.Tensor,
                       temperature):
-  """Compute distillation loss.
 
-  This function computes cross entropy between softened logits and softened
-  targets. The resulting loss is scaled by the squared temperature so that
-  the gradient magnitude remains approximately constant as the temperature is
-  changed. For reference, see Hinton et al., 2014, "Distilling the knowledge in
-  a neural network."
-
-  Args:
-    teacher_logits: A Tensor of logits provided by the teacher.
-    student_logits: A Tensor of logits provided by the student, of the same
-      shape as `teacher_logits`.
-    temperature: Temperature to use for distillation.
-
-  Returns:
-    A scalar Tensor containing the distillation loss.
-  """
- # your code start from here for step 3
   soft_targets = tf.exp(teacher_logits/temperature) / tf.\
       reduce_sum(tf.exp(teacher_logits/temperature), -1, keepdims=True)
 
@@ -361,16 +334,7 @@ def distillation_loss(teacher_logits: tf.Tensor, student_logits: tf.Tensor,
           soft_targets, student_logits / temperature)) * temperature ** 2
 
 def compute_student_loss(student_model, teacher_model, images, labels, temperature, alpha):
-  """Compute subclass knowledge distillation student loss for given images
-     and labels.
 
-  Args:
-    images: Tensor representing a batch of images.
-    labels: Tensor representing a batch of labels.
-
-  Returns:
-    Scalar loss Tensor.
-  """
 
   student_subclass_logits = student_model(images, training=True)
 
@@ -394,16 +358,7 @@ def compute_student_loss(student_model, teacher_model, images, labels, temperatu
   return alpha*distillation_loss_value+(1-alpha)*cross_entropy_loss_value
 
 def compute_loss_fun(model, images, labels):
-  """Compute subclass knowledge distillation teacher loss for given images
-     and labels.
 
-  Args:
-    images: Tensor representing a batch of images.
-    labels: Tensor representing a batch of labels.
-
-  Returns:
-    Scalar loss Tensor.
-  """
   subclass_logits = model(images, training=True)
 
   cross_entropy_loss_value=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=labels, logits=subclass_logits))
